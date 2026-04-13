@@ -11,14 +11,16 @@ function getCloneDir(owner, repo) {
 
 /**
  * First run  → clones the repo into backend/clones/owner-repo/
- * Later runs → git fetch + checkout default branch + hard reset to origin
- *              (never does a bare pull to avoid AI-branch tracking issues)
+ * Later runs → hard-reset working tree, then fetch + checkout default branch.
  *
- * Returns the absolute path to the local clone directory.
+ * THE FIX: Before switching branches we do:
+ *   1. git reset --hard HEAD   — discards any uncommitted edits (AI leftovers)
+ *   2. git clean -fd           — removes any untracked files the AI may have created
+ * This guarantees a clean slate regardless of what the previous agent run left behind.
  */
 async function cloneOrPull(owner, repo) {
     const cloneDir = getCloneDir(owner, repo);
-    const token = (process.env.GITHUB_TOKEN || '').trim();
+    const token    = (process.env.GITHUB_TOKEN || '').trim();
     const cloneUrl = `https://${token}@github.com/${owner}/${repo}.git`;
 
     if (!fs.existsSync(CLONES_DIR)) {
@@ -32,6 +34,24 @@ async function cloneOrPull(owner, repo) {
         // Always update the remote URL first (supports token rotation/fixes)
         await git.remote(['set-url', 'origin', cloneUrl]);
 
+        // ── HARD RESET — discard all AI edits before switching branches ────
+        // Without this, "git checkout main" fails with:
+        // "Your local changes to the following files would be overwritten by checkout"
+        try {
+            await git.reset(['--hard', 'HEAD']);
+            console.log('[gitService] Hard-reset to HEAD: working tree clean.');
+        } catch (resetErr) {
+            console.warn('[gitService] reset --hard failed (non-fatal):', resetErr.message);
+        }
+
+        // Remove untracked files/dirs (new files the agent may have created)
+        try {
+            await git.clean('fd', ['-f']);
+            console.log('[gitService] Cleaned untracked files.');
+        } catch (cleanErr) {
+            console.warn('[gitService] git clean failed (non-fatal):', cleanErr.message);
+        }
+
         // Detect default branch (main, master, develop, etc.)
         let defaultBranch = 'main';
         try {
@@ -40,11 +60,11 @@ async function cloneOrPull(owner, repo) {
             if (match) defaultBranch = match[1].trim();
         } catch { /* keep 'main' as fallback */ }
 
-        // Fetch all remote refs without touching working tree
+        // Fetch all remote refs
         await git.fetch(['origin', '--prune']);
 
-        // Switch to default branch and hard-reset to remote state
-        //  -B = create or reset the branch to the remote commit
+        // Switch to default branch and reset to remote state
+        // -B = create or reset the branch to the remote commit
         await git.checkout(['-B', defaultBranch, `origin/${defaultBranch}`]);
 
         console.log(`[gitService] Updated clone to origin/${defaultBranch}`);
@@ -78,7 +98,7 @@ async function commitAll(cloneDir, message) {
 
     // Configure git user so commits don't fail in CI-like environments
     await git.addConfig('user.email', process.env.GIT_EMAIL || 'ai-agent@hackingrepo.dev');
-    await git.addConfig('user.name', process.env.GIT_NAME || 'Quantum AI Agent');
+    await git.addConfig('user.name',  process.env.GIT_NAME  || 'Quantum AI Agent');
 
     await git.add('-A');
     const status = await git.status();
@@ -92,19 +112,18 @@ async function commitAll(cloneDir, message) {
 }
 
 /**
- * Force-pushes the branch to origin. Force is needed because AI branches
- * are always created fresh from main — they never have a prior remote state.
+ * Force-pushes the branch to origin.
+ * Force is needed because the AI branch is always recreated from main.
  */
 async function pushBranch(cloneDir, branchName) {
-    const git = simpleGit(cloneDir);
-    const token = process.env.GITHUB_TOKEN;
+    const git    = simpleGit(cloneDir);
+    const token  = process.env.GITHUB_TOKEN;
 
-    // Re-set remote URL with auth token (sanitize existing token if any)
+    // Re-set remote URL with auth token
     const remotes = await git.getRemotes(true);
-    const origin = remotes.find(r => r.name === 'origin');
+    const origin  = remotes.find(r => r.name === 'origin');
     if (origin) {
-        // Regex to extract the base URL after any existing auth: https://[user:pass@]github.com/...
-        const baseUrl = origin.refs.push.replace(/^https:\/\/(.*@)?/, '');
+        const baseUrl     = origin.refs.push.replace(/^https:\/\/(.*@)?/, '');
         const urlWithToken = `https://${token}@${baseUrl}`;
         await git.remote(['set-url', 'origin', urlWithToken]);
     }
