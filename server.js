@@ -38,7 +38,11 @@ io.on("connection", (socket) => {
 
 // Pass io instance to app so controllers can access it
 app.set("io", io);
-global.ioInstance = io; // For cron
+global.ioInstance = io;
+
+app.get("/api/status", (req, res) => {
+  res.json({ status: "Agent Backend Running", port: PORT });
+});
 
 // ── MongoDB connection ────────────────────────────────────────────────────────
 // BUG FIX 1: The Atlas URI was missing a database name — appended
