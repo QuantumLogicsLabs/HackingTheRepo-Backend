@@ -94,6 +94,8 @@ mongoose
     process.exit(1); // Exit clearly so the error is visible in logs
   });
 
+
+
 // ── Handle unexpected disconnects after startup ───────────────────────────────
 mongoose.connection.on("disconnected", () => {
   console.warn("⚠️  MongoDB disconnected. Mongoose will attempt to reconnect automatically.");
@@ -102,3 +104,5 @@ mongoose.connection.on("disconnected", () => {
 mongoose.connection.on("reconnected", () => {
   console.log("✅ MongoDB reconnected.");
 });
+
+// Setup complete by Fahad
