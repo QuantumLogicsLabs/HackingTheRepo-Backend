@@ -1,5 +1,6 @@
 const Chat = require('../models/Chat');
 const aiService = require('../services/aiService');
+const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
 
@@ -18,7 +19,15 @@ exports.sendMessage = async (req, res) => {
     }
 
     if (chatId) {
-        chat = await Chat.findById(chatId);
+        if (!mongoose.Types.ObjectId.isValid(chatId)) {
+            return res.status(400).json({ error: 'Invalid chatId format' });
+        }
+
+        try {
+            chat = await Chat.findById(chatId);
+        } catch (error) {
+            return res.status(500).json({ error: error.message });
+        }
     }
 
     if (!chat) {

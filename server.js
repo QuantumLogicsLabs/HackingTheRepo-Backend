@@ -68,6 +68,9 @@ mongoose
     const chatRoutes = require("./routes/chatRoutes");
     const jobRoutes = require("./routes/jobRoutes");
     app.use("/api/agent", agentRoutes);
+    // Backward-compatible aliases expected by the current frontend.
+    app.use("/api/agent/chat", chatRoutes);
+    app.use("/api/agent/jobs", jobRoutes);
     app.use("/api/chat", chatRoutes);
     app.use("/api/jobs", jobRoutes);
 
