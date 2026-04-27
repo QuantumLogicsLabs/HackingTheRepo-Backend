@@ -9,6 +9,14 @@ exports.sendMessage = async (req, res) => {
     const { repository, message, chatId } = req.body;
     let chat;
 
+    if (!repository || typeof repository !== 'string') {
+        return res.status(400).json({ error: 'repository is required' });
+    }
+
+    if (!message || typeof message !== 'string') {
+        return res.status(400).json({ error: 'message is required' });
+    }
+
     if (chatId) {
         chat = await Chat.findById(chatId);
     }
@@ -65,6 +73,9 @@ DO NOT ASK ANY QUESTIONS. Do not try to clarify. If the user tells you to do som
 exports.getChat = async (req, res) => {
     try {
         const chat = await Chat.findById(req.params.id);
+        if (!chat) {
+            return res.status(404).json({ error: 'Chat not found' });
+        }
         res.json(chat);
     } catch (error) {
         res.status(500).json({ error: error.message });
