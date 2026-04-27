@@ -40,10 +40,6 @@ io.on("connection", (socket) => {
 app.set("io", io);
 global.ioInstance = io;
 
-app.get("/api/status", (req, res) => {
-  res.json({ status: "Agent Backend Running", port: PORT });
-});
-
 // ── MongoDB connection ────────────────────────────────────────────────────────
 // BUG FIX 1: The Atlas URI was missing a database name — appended
 //            "quantum-code-agent" before the query string so Mongoose
@@ -69,7 +65,14 @@ mongoose
 
     // ── Register API routes AFTER DB is ready ────────────────────────────
     const agentRoutes = require("./routes/agentRoutes");
+    const chatRoutes = require("./routes/chatRoutes");
+    const jobRoutes = require("./routes/jobRoutes");
     app.use("/api/agent", agentRoutes);
+    // Backward-compatible aliases expected by the current frontend.
+    app.use("/api/agent/chat", chatRoutes);
+    app.use("/api/agent/jobs", jobRoutes);
+    app.use("/api/chat", chatRoutes);
+    app.use("/api/jobs", jobRoutes);
 
     // ── Start cron AFTER DB is ready ─────────────────────────────────────
     require("./services/cronService");
@@ -94,8 +97,6 @@ mongoose
     process.exit(1); // Exit clearly so the error is visible in logs
   });
 
-
-
 // ── Handle unexpected disconnects after startup ───────────────────────────────
 mongoose.connection.on("disconnected", () => {
   console.warn("⚠️  MongoDB disconnected. Mongoose will attempt to reconnect automatically.");
@@ -104,5 +105,3 @@ mongoose.connection.on("disconnected", () => {
 mongoose.connection.on("reconnected", () => {
   console.log("✅ MongoDB reconnected.");
 });
-
-// Setup complete by Fahad

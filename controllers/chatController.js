@@ -1,5 +1,6 @@
 const Chat = require('../models/Chat');
 const aiService = require('../services/aiService');
+const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
 
@@ -9,8 +10,24 @@ exports.sendMessage = async (req, res) => {
     const { repository, message, chatId } = req.body;
     let chat;
 
+    if (!repository || typeof repository !== 'string') {
+        return res.status(400).json({ error: 'repository is required' });
+    }
+
+    if (!message || typeof message !== 'string') {
+        return res.status(400).json({ error: 'message is required' });
+    }
+
     if (chatId) {
-        chat = await Chat.findById(chatId);
+        if (!mongoose.Types.ObjectId.isValid(chatId)) {
+            return res.status(400).json({ error: 'Invalid chatId format' });
+        }
+
+        try {
+            chat = await Chat.findById(chatId);
+        } catch (error) {
+            return res.status(500).json({ error: error.message });
+        }
     }
 
     if (!chat) {
@@ -65,6 +82,9 @@ DO NOT ASK ANY QUESTIONS. Do not try to clarify. If the user tells you to do som
 exports.getChat = async (req, res) => {
     try {
         const chat = await Chat.findById(req.params.id);
+        if (!chat) {
+            return res.status(404).json({ error: 'Chat not found' });
+        }
         res.json(chat);
     } catch (error) {
         res.status(500).json({ error: error.message });
