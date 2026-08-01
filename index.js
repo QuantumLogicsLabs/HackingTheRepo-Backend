@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import cookieParser from "cookie-parser";
 import { pathToFileURL } from "url";
 
 import authRoutes from "./routes/auth.js";
@@ -42,6 +43,7 @@ app.use(
   }),
 );
 app.use(express.json({ limit: "1mb" }));
+app.use(cookieParser());
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

@@ -21,8 +21,21 @@ const getJwtSecret = () => {
   return process.env.JWT_SECRET || "secret";
 };
 
+// signToken: takes a user id, returns a signed JWT string
 const signToken = (id) =>
   jwt.sign({ id }, getJwtSecret(), { expiresIn: "7d" });
+
+// setAuthCookie: puts that JWT into an httpOnly cookie on the response
+const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days, matches signToken's expiresIn
+
+function setAuthCookie(res, token) {
+  res.cookie("token", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: COOKIE_MAX_AGE,
+  });
+}
 
 const oauthStates = new Map();
 
@@ -51,9 +64,9 @@ router.post("/signup", validate(signupSchema), async (req, res) => {
 
     const user = await User.create({ username, email, password });
     const token = signToken(user._id);
+    setAuthCookie(res, token);
 
     res.status(201).json({
-      token,
       user: toAuthUser(user),
     });
   } catch (err) {
@@ -73,8 +86,9 @@ router.post("/login", validate(loginSchema), async (req, res) => {
     }
 
     const token = signToken(user._id);
+    setAuthCookie(res, token);
+
     res.json({
-      token,
       user: toAuthUser(user),
     });
   } catch (err) {
@@ -87,8 +101,13 @@ router.get("/me", protect, async (req, res) => {
   res.json(toAuthUser(req.user));
 });
 
-// POST /api/auth/logout — JWT is client-cleared; route exists for API symmetry
+// POST /api/auth/logout — clears the httpOnly cookie set at login
 router.post("/logout", (_req, res) => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+  });
   res.status(204).send();
 });
 
@@ -191,8 +210,9 @@ router.post(
       }
 
       const token = signToken(user._id);
+      setAuthCookie(res, token);
+
       res.json({
-        token,
         user: toAuthUser(user),
         githubUsername,
         githubToken: accessToken,
