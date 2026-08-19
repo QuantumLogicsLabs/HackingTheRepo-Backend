@@ -12,6 +12,7 @@
   "dependencies": {
     "axios": "^1.7.2",
     "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
@@ -27,5 +28,9 @@
     "nodemon": "^3.1.4",
     "supertest": "^7.0.0",
     "vitest": "^1.6.1"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true,
+    "mongodb-memory-server@11.2.0": true
   }
 }

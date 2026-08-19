@@ -77,5 +77,5 @@ export function authHeader(token) {
 }
 
 export function agent(app) {
-  return request(app);
+  return request.agent(app);
 }
