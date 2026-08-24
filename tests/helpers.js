@@ -44,6 +44,7 @@ export async function createUserAndToken(overrides = {}) {
     githubUsername,
     githubToken,
     openaiKey,
+    role,
   } = overrides;
 
   const user = await User.create({
@@ -54,6 +55,7 @@ export async function createUserAndToken(overrides = {}) {
       email ||
       `user_${Date.now()}_${Math.random().toString(36).slice(2, 6)}@example.com`,
     password: password || "password123",
+    role: role || "user",
     githubUsername: githubUsername || "octocat",
     githubToken: stripSecrets
       ? ""

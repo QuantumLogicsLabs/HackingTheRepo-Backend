@@ -4,11 +4,7 @@ import axios from "axios";
 import crypto from "crypto";
 import User from "../models/User.js";
 import { protect } from "../middleware/auth.js";
-import {
-  loginSchema,
-  signupSchema,
-  validate,
-} from "../middleware/validate.js";
+import { loginSchema, signupSchema, validate } from "../middleware/validate.js";
 import { encryptSecret } from "../utils/crypto.js";
 
 const COOKIE_NAME = "rm_session";
@@ -50,6 +46,16 @@ function toAuthUser(user) {
   };
 }
 
+// Emails listed here (comma-separated in .env) become admin on signup
+// or first GitHub OAuth login.
+function resolveRole(email) {
+  const adminEmails = (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return adminEmails.includes(String(email).toLowerCase()) ? "admin" : "user";
+}
+
 // POST /api/auth/signup
 router.post("/signup", validate(signupSchema), async (req, res) => {
   try {
@@ -63,7 +69,12 @@ router.post("/signup", validate(signupSchema), async (req, res) => {
       });
     }
 
-    const user = await User.create({ username, email, password });
+    const user = await User.create({
+      username,
+      email,
+      password,
+      role: resolveRole(email),
+    });
     const token = signToken(user._id);
 
     res.cookie(COOKIE_NAME, token, cookieOptions());
@@ -111,9 +122,10 @@ router.post("/logout", (_req, res) => {
 router.get("/github", (req, res) => {
   const clientId = process.env.GITHUB_CLIENT_ID;
   if (!clientId) {
-    return res
-      .status(503)
-      .json({ message: "GitHub OAuth is not configured", code: "OAUTH_DISABLED" });
+    return res.status(503).json({
+      message: "GitHub OAuth is not configured",
+      code: "OAUTH_DISABLED",
+    });
   }
 
   const redirectUri =
@@ -191,6 +203,7 @@ router.get("/github/callback", async (req, res) => {
         password: crypto.randomBytes(24).toString("hex"),
         githubUsername,
         githubToken: encryptSecret(accessToken),
+        role: resolveRole(primaryEmail),
       });
     } else {
       user.githubUsername = githubUsername;
