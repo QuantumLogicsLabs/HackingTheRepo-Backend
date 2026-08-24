@@ -109,12 +109,20 @@ router.post("/", protect, validate(createJobSchema), async (req, res) => {
   }
 });
 
-// GET /api/jobs — List all jobs for user
+// GET /api/jobs — List jobs (all jobs if admin, own jobs otherwise)
 router.get("/", protect, async (req, res) => {
   try {
-    const jobs = await Job.find({ userId: req.user._id }).sort({
-      createdAt: -1,
-    });
+    const isAdmin = req.user.role === "admin";
+    const filter = isAdmin ? {} : { userId: req.user._id };
+    // Admins can further scope to one user via ?userId=<id>
+    if (isAdmin && req.query.userId) {
+      filter.userId = req.query.userId;
+    }
+
+    const jobs = await Job.find(filter)
+      .sort({ createdAt: -1 })
+      .populate(isAdmin ? { path: "userId", select: "username email" } : []);
+
     res.json(jobs);
   } catch (err) {
     res.status(500).json({ message: err.message, code: "INTERNAL_ERROR" });
@@ -124,10 +132,14 @@ router.get("/", protect, async (req, res) => {
 // GET /api/jobs/:id — Get single job
 router.get("/:id", protect, async (req, res) => {
   try {
-    const job = await Job.findOne({
-      _id: req.params.id,
-      userId: req.user._id,
-    });
+    const isAdmin = req.user.role === "admin";
+    const query = isAdmin
+      ? { _id: req.params.id }
+      : { _id: req.params.id, userId: req.user._id };
+    const job = await Job.findOne(query).populate(
+      isAdmin ? { path: "userId", select: "username email" } : [],
+    );
+
     if (!job) {
       return res
         .status(404)
@@ -170,7 +182,7 @@ router.get("/:id/status", protect, async (req, res) => {
         job.status = "completed";
         job.prUrl = realPrUrl;
         job.diffSummary = data.diff_summary || null;
-        job.diff = data.diff || null; 
+        job.diff = data.diff || null;
         job.finishedAt = new Date();
         job.errorMessage = null;
 

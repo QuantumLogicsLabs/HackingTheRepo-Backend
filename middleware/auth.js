@@ -4,6 +4,15 @@ import User from "../models/User.js";
 const getJwtSecret = () => process.env.JWT_SECRET || "secret";
 const SESSION_COOKIE = "rm_session";
 
+  export const requireAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== "admin") {
+    return res
+      .status(403)
+      .json({ message: "Admin access required", code: "FORBIDDEN" });
+  }
+  next();
+};
+
 export const protect = async (req, res, next) => {
   let token;
 
