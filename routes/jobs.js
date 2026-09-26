@@ -39,14 +39,18 @@ async function dispatchToRepoMind(job, user) {
   const githubToken = decryptSecret(user.githubToken);
   const openaiKey = decryptSecret(user.openaiKey);
 
+  // FIX: field names must match RepoMind/api/schemas.py RunRequest exactly
+  // (github_pat / llm_provider / llm_api_key) — the old names (github_token,
+  // openai_api_key, create_pr) were silently dropped by Pydantic, so every
+  // job ran on the server's default credentials instead of the user's own.
   const rmRes = await axios.post(`${REPOMIND_API}/run`, {
     repo_url: job.repoUrl,
     instruction: job.instruction,
     branch_name: job.branchName,
     pr_title: job.prTitle,
-    create_pr: !job.previewBeforePush,
-    github_token: githubToken || undefined,
-    openai_api_key: openaiKey || undefined,
+    github_pat: githubToken || undefined,
+    llm_provider: "groq",
+    llm_api_key: openaiKey || undefined,
   });
 
   job.repomindJobId = rmRes.data.job_id;
@@ -332,6 +336,10 @@ router.post(
 );
 
 // POST /api/jobs/:id/open-pr — open PR after preview-only run
+// NOTE: RepoMind currently has no /open-pr route (only /run, /status,
+// /stream, /ws/jobs, /refine, /run-batch, /batch-status, /metrics), so this
+// will always resolve into the catch block below with OPEN_PR_FAILED until
+// that endpoint is added on the RepoMind side.
 router.post("/:id/open-pr", protect, async (req, res) => {
   try {
     const job = await Job.findOne({
@@ -361,9 +369,11 @@ router.post("/:id/open-pr", protect, async (req, res) => {
     const user = await User.findById(req.user._id);
     const githubToken = decryptSecret(user?.githubToken);
 
+    // FIX: same field-name issue as dispatchToRepoMind — RepoMind's schema
+    // (once the endpoint exists) will expect github_pat, not github_token.
     const rmRes = await axios.post(`${REPOMIND_API}/open-pr`, {
       job_id: job.repomindJobId,
-      github_token: githubToken || undefined,
+      github_pat: githubToken || undefined,
     });
 
     const prUrl = rmRes.data?.pr_url;

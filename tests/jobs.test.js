@@ -76,11 +76,19 @@ describe("jobs", () => {
     expect(res.body.status).toBe("running");
     expect(res.body.repomindJobId).toBe("rm-1");
     expect(res.body.previewBeforePush).toBe(true);
+    // FIX: assert the real RepoMind RunRequest contract (github_pat /
+    // llm_provider / llm_api_key) instead of the old dropped fields
+    // (create_pr, github_token, openai_api_key).
     expect(axios.post).toHaveBeenCalledWith(
       "http://repomind.test/run",
       expect.objectContaining({
-        create_pr: false,
         repo_url: "https://github.com/a/b",
+        instruction: "add tests",
+        branch_name: "repomind/add-tests",
+        pr_title: "repomind: add tests",
+        github_pat: "ghp_testtoken1234",
+        llm_provider: "groq",
+        llm_api_key: "sk-testopenai1234",
       }),
     );
   });

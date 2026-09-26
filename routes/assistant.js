@@ -26,9 +26,11 @@ router.post(
 
       const { instruction } = req.body;
       const response = await axios.post(
-        "https://api.openai.com/v1/chat/completions",
+        "https://api.groq.com/openai/v1/chat/completions",
         {
-          model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+          // FIX: llama-3.3-70b-versatile was decommissioned by Groq on
+          // 2026-08-16. openai/gpt-oss-120b is Groq's recommended replacement.
+          model: process.env.OPENAI_MODEL || "openai/gpt-oss-120b",
           messages: [
             {
               role: "system",
