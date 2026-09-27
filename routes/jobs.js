@@ -39,14 +39,18 @@ async function dispatchToRepoMind(job, user) {
   const githubToken = decryptSecret(user.githubToken);
   const openaiKey = decryptSecret(user.openaiKey);
 
+  // FIX: field names must match RepoMind/api/schemas.py RunRequest exactly
+  // (github_pat / llm_provider / llm_api_key) — the old names (github_token,
+  // openai_api_key, create_pr) were silently dropped by Pydantic, so every
+  // job ran on the server's default credentials instead of the user's own.
   const rmRes = await axios.post(`${REPOMIND_API}/run`, {
     repo_url: job.repoUrl,
     instruction: job.instruction,
     branch_name: job.branchName,
     pr_title: job.prTitle,
-    create_pr: !job.previewBeforePush,
-    github_token: githubToken || undefined,
-    openai_api_key: openaiKey || undefined,
+    github_pat: githubToken || undefined,
+    llm_provider: "groq",
+    llm_api_key: openaiKey || undefined,
   });
 
   job.repomindJobId = rmRes.data.job_id;
@@ -211,6 +215,84 @@ router.get("/:id/status", protect, async (req, res) => {
   }
 });
 
+// GET /api/jobs/:id/stream — proxies RepoMind's live SSE progress feed
+// straight through to the browser. Replaces client-side polling entirely:
+// the connection stays open and RepoMind pushes events the instant they
+// happen, instead of the client asking every few seconds.
+router.get("/:id/stream", protect, async (req, res) => {
+  try {
+    const job = await Job.findOne({
+      _id: req.params.id,
+      userId: req.user._id,
+    });
+    if (!job) return res.status(404).end();
+    if (!job.repomindJobId) return res.status(409).end(); // job hasn't been dispatched yet
+
+    let upstream;
+    try {
+      upstream = await axios.get(
+        `${REPOMIND_API}/stream/${job.repomindJobId}`,
+        { responseType: "stream", timeout: 0 },
+      );
+    } catch {
+      // RepoMind unreachable — fail loud with a real status instead of
+      // hanging the connection open with nothing behind it.
+      return res.status(502).end();
+    }
+
+    res.set({
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    });
+    res.flushHeaders();
+
+    upstream.data.pipe(res);
+
+    // When the stream closes (job completed/failed), sync the final state
+    // into Mongo ONCE — instead of writing to the DB every few seconds.
+    upstream.data.on("end", async () => {
+      try {
+        const { data } = await axios.get(
+          `${REPOMIND_API}/status/${job.repomindJobId}`,
+        );
+        const realPrUrl = isRealPrUrl(data.pr_url) ? data.pr_url : null;
+
+        job.status = data.status;
+        job.prUrl = realPrUrl || job.prUrl;
+        job.diffSummary = data.diff_summary || job.diffSummary;
+        job.diff = data.diff || job.diff;
+        job.errorMessage = data.error_message || null;
+        job.finishedAt = new Date();
+        await job.save();
+
+        if (realPrUrl && job.status === "completed") {
+          await User.findByIdAndUpdate(job.userId, {
+            $inc: { successfulPRs: 1 },
+          });
+        }
+      } catch {
+        // best-effort sync — client will still get the final status
+        // next time it loads the job normally
+      }
+      res.end();
+    });
+
+    // If the upstream connection errors out mid-stream, close cleanly
+    // instead of leaving the client hanging on a dead connection.
+    upstream.data.on("error", () => res.end());
+
+    req.on("close", () => upstream.data.destroy());
+  } catch (err) {
+    // Only reachable if something fails before headers are sent
+    if (!res.headersSent) {
+      res.status(500).json({ message: err.message, code: "INTERNAL_ERROR" });
+    } else {
+      res.end();
+    }
+  }
+});
+
 // POST /api/jobs/:id/refine
 router.post(
   "/:id/refine",
@@ -254,6 +336,10 @@ router.post(
 );
 
 // POST /api/jobs/:id/open-pr — open PR after preview-only run
+// NOTE: RepoMind currently has no /open-pr route (only /run, /status,
+// /stream, /ws/jobs, /refine, /run-batch, /batch-status, /metrics), so this
+// will always resolve into the catch block below with OPEN_PR_FAILED until
+// that endpoint is added on the RepoMind side.
 router.post("/:id/open-pr", protect, async (req, res) => {
   try {
     const job = await Job.findOne({
@@ -283,9 +369,11 @@ router.post("/:id/open-pr", protect, async (req, res) => {
     const user = await User.findById(req.user._id);
     const githubToken = decryptSecret(user?.githubToken);
 
+    // FIX: same field-name issue as dispatchToRepoMind — RepoMind's schema
+    // (once the endpoint exists) will expect github_pat, not github_token.
     const rmRes = await axios.post(`${REPOMIND_API}/open-pr`, {
       job_id: job.repomindJobId,
-      github_token: githubToken || undefined,
+      github_pat: githubToken || undefined,
     });
 
     const prUrl = rmRes.data?.pr_url;
