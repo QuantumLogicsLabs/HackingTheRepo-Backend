@@ -70,7 +70,7 @@ describe("assistant", () => {
   });
 
   it("returns 502 when LLM fails", async () => {
-    vi.spyOn(axios, "post").mockRejectedValue(new Error("openai down"));
+    vi.spyOn(axios, "post").mockRejectedValue(new Error("groq down"));
 
     const { token } = await createUserAndToken({
       username: "assist3",

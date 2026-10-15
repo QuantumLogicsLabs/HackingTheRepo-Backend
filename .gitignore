@@ -8,3 +8,4 @@ dist/
 .txtconfig
 .txtignore
 HackingTheRepo.txt
+.git-multi-commit.json

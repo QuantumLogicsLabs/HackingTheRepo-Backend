@@ -10,28 +10,28 @@ const router = express.Router();
 router.get("/", protect, async (req, res) => {
   const user = await User.findById(req.user._id);
   const githubToken = decryptSecret(user.githubToken);
-  const openaiKey = decryptSecret(user.openaiKey);
+  const groqKey = decryptSecret(user.groqKey);
 
   res.json({
     githubUsername: user.githubUsername,
     githubToken: githubToken ? maskSecret(user.githubToken) : "",
-    openaiKey: openaiKey ? maskSecret(user.openaiKey) : "",
+    groqKey: groqKey ? maskSecret(user.groqKey) : "",
     hasGithubToken: !!githubToken,
-    hasOpenaiKey: !!openaiKey,
+    hasGroqKey: !!groqKey,
   });
 });
 
 // PUT /api/settings
 router.put("/", protect, validate(settingsSchema), async (req, res) => {
   try {
-    const { githubUsername, githubToken, openaiKey } = req.body;
+    const { githubUsername, githubToken, groqKey } = req.body;
     const update = {};
     if (githubUsername !== undefined) update.githubUsername = githubUsername;
     if (githubToken && !githubToken.startsWith("••")) {
       update.githubToken = encryptSecret(githubToken);
     }
-    if (openaiKey && !openaiKey.startsWith("••")) {
-      update.openaiKey = encryptSecret(openaiKey);
+    if (groqKey && !groqKey.startsWith("••")) {
+      update.groqKey = encryptSecret(groqKey);
     }
 
     if (Object.keys(update).length === 0) {

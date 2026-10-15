@@ -1,10 +1,5 @@
 import { z } from "zod";
 
-// Schema matching flat req.body ({ role: "admin" })
-export const updateUserRoleSchema = z.object({
-  role: z.enum(["user", "admin"]),
-});
-
 export const signupSchema = z.object({
   username: z.string().trim().min(2).max(64),
   email: z.string().trim().email(),
@@ -19,7 +14,7 @@ export const loginSchema = z.object({
 export const settingsSchema = z.object({
   githubUsername: z.string().trim().max(128).optional(),
   githubToken: z.string().max(512).optional(),
-  openaiKey: z.string().max(512).optional(),
+  groqKey: z.string().max(512).optional(),
 });
 
 export const createJobSchema = z.object({
@@ -46,12 +41,7 @@ export const githubCallbackSchema = z.object({
 
 export function validate(schema) {
   return (req, res, next) => {
-    // Handle both flat req.body and nested req.body.body schemas dynamically
-    const dataToValidate =
-      schema.shape && "body" in schema.shape ? { body: req.body } : req.body;
-
-    const parsed = schema.safeParse(dataToValidate);
-
+    const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
         message: parsed.error.errors[0]?.message || "Invalid request body",
@@ -59,8 +49,7 @@ export function validate(schema) {
         details: parsed.error.flatten(),
       });
     }
-
-    req.body = parsed.data.body || parsed.data;
+    req.body = parsed.data;
     next();
   };
 }

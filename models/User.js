@@ -6,11 +6,10 @@ const userSchema = new mongoose.Schema(
     username: { type: String, required: true, unique: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true },
     password: { type: String, required: true },
-    role: { type: String, enum: ["user", "admin"], default: "user" },
     githubUsername: { type: String, default: "" },
     // User's OWN github token - used to verify repo access etc. (optional)
     githubToken: { type: String, default: "" },
-    openaiKey: { type: String, default: "" },
+    groqKey: { type: String, default: "" },
     totalJobs: { type: Number, default: 0 },
     successfulPRs: { type: Number, default: 0 },
   },

@@ -43,8 +43,7 @@ export async function createUserAndToken(overrides = {}) {
     password,
     githubUsername,
     githubToken,
-    openaiKey,
-    role,
+    groqKey,
   } = overrides;
 
   const user = await User.create({
@@ -55,14 +54,13 @@ export async function createUserAndToken(overrides = {}) {
       email ||
       `user_${Date.now()}_${Math.random().toString(36).slice(2, 6)}@example.com`,
     password: password || "password123",
-    role: role || "user",
     githubUsername: githubUsername || "octocat",
     githubToken: stripSecrets
       ? ""
       : encryptSecret(githubToken || "ghp_testtoken1234"),
-    openaiKey: stripSecrets
+    groqKey: stripSecrets
       ? ""
-      : encryptSecret(openaiKey || "sk-testopenai1234"),
+      : encryptSecret(groqKey || "gsk_testgroq1234"),
   });
 
   const token = jwt.sign(
@@ -79,5 +77,5 @@ export function authHeader(token) {
 }
 
 export function agent(app) {
-  return request.agent(app);
+  return request(app);
 }

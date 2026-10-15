@@ -43,7 +43,7 @@ describe("settings", () => {
       .send({
         githubUsername: "octocat",
         githubToken: "ghp_abcdef123456",
-        openaiKey: "sk-openaiabcdef",
+        groqKey: "gsk_groqabcdef",
       });
 
     expect(put.status).toBe(200);
@@ -54,9 +54,9 @@ describe("settings", () => {
 
     expect(get.status).toBe(200);
     expect(get.body.hasGithubToken).toBe(true);
-    expect(get.body.hasOpenaiKey).toBe(true);
+    expect(get.body.hasGroqKey).toBe(true);
     expect(get.body.githubToken).toContain("••••");
-    expect(get.body.openaiKey).toContain("••••");
+    expect(get.body.groqKey).toContain("••••");
   });
 
   it("rejects empty update", async () => {
