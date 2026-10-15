@@ -41,6 +41,7 @@ export default defineConfig({
       "/api": {
         target: "http://localhost:5000",
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ""),
       },
       "/metrics": {
         target: "http://localhost:9100",
@@ -54,7 +55,11 @@ export default defineConfig({
               );
               warned = true;
             }
-            if (res && !res.headersSent && typeof res.writeHead === "function") {
+            if (
+              res &&
+              !res.headersSent &&
+              typeof res.writeHead === "function"
+            ) {
               res.writeHead(204);
             }
             if (res && typeof res.end === "function") {
