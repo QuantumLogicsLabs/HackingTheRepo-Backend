@@ -1,17 +1,37 @@
 module.exports = {
   root: true,
-  ignorePatterns: ["node_modules/", "coverage/"],
+  ignorePatterns: ["dist/", "node_modules/"],
   env: {
+    browser: true,
     es2021: true,
     node: true,
   },
+  parser: "@typescript-eslint/parser",
   parserOptions: {
     ecmaVersion: "latest",
     sourceType: "module",
+    ecmaFeatures: {
+      jsx: true,
+    },
   },
-  extends: ["eslint:recommended"],
+  settings: {
+    react: {
+      version: "detect",
+    },
+  },
+  plugins: ["react", "react-hooks", "@typescript-eslint"],
+  extends: [
+    "eslint:recommended",
+    "plugin:react/recommended",
+    "plugin:react-hooks/recommended",
+    "plugin:@typescript-eslint/recommended",
+  ],
   rules: {
-    "no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+    "react/react-in-jsx-scope": "off",
+    "react/jsx-uses-react": "off",
+    "react/no-unescaped-entities": "off",
     "no-empty": "warn",
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
   },
 };
