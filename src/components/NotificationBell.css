@@ -1,0 +1,13 @@
+.notif-bell { position: relative; }
+.bell-btn { background: transparent; border: 1px solid transparent; padding: 8px; border-radius: 8px; position: relative; cursor: pointer; }
+.bell-btn:hover { background: rgba(0,0,0,0.03); }
+.bell-count { position: absolute; top: 2px; right: 2px; min-width: 18px; height: 18px; background: var(--red); color: #fff; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; padding: 0 6px; border-radius: 999px; }
+.bell-dropdown { position: absolute; right: 0; top: 42px; width: 320px; background: var(--bg4); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.12); overflow: hidden; z-index: 999; }
+.bell-header { padding: 12px 14px; font-weight: 700; font-size: 13px; border-bottom: 1px solid var(--border); }
+.bell-list { max-height: 360px; overflow: auto; display: flex; flex-direction: column; gap: 6px; padding: 8px; }
+.bell-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; }
+.bell-item.unread { background: rgba(92,168,255,0.06); }
+.bell-item.read { opacity: 0.7; }
+.bell-item-title { font-weight: 700; font-size: 13px; }
+.bell-item-body { font-size: 12px; color: var(--text3); margin-top: 4px; }
+.bell-empty { padding: 16px; color: var(--text3); text-align: center; }
