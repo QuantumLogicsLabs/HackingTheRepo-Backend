@@ -4,10 +4,8 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import cookieParser from "cookie-parser";
 import { pathToFileURL } from "url";
 
-import adminRoutes from "./routes/admin.js";
 import authRoutes from "./routes/auth.js";
 import jobRoutes from "./routes/jobs.js";
 import settingsRoutes from "./routes/settings.js";
@@ -43,9 +41,6 @@ app.use(
     credentials: true,
   }),
 );
-
-// Body and Cookie parsers MUST run before routes
-app.use(cookieParser());
 app.use(express.json({ limit: "1mb" }));
 
 const authLimiter = rateLimit({
@@ -71,7 +66,6 @@ if (process.env.VITEST !== "true") {
     .catch((err) => console.error("❌ MongoDB error:", err));
 }
 
-app.use("/api/admin", adminRoutes);
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/jobs", (req, res, next) => {
   if (req.method === "POST" && req.path === "/") {

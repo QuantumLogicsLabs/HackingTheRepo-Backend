@@ -14,12 +14,12 @@ router.post(
   async (req, res) => {
     try {
       const user = await User.findById(req.user._id);
-      const userKey = decryptSecret(user?.openaiKey);
-      const apiKey = userKey || process.env.OPENAI_API_KEY;
+      const userKey = decryptSecret(user?.groqKey);
+      const apiKey = userKey || process.env.GROQ_API_KEY;
 
       if (!apiKey) {
         return res.status(502).json({
-          message: "No OpenAI API key configured in settings or server env",
+          message: "No Groq API key configured in settings or server env",
           code: "LLM_UNAVAILABLE",
         });
       }
@@ -28,9 +28,7 @@ router.post(
       const response = await axios.post(
         "https://api.groq.com/openai/v1/chat/completions",
         {
-          // FIX: llama-3.3-70b-versatile was decommissioned by Groq on
-          // 2026-08-16. openai/gpt-oss-120b is Groq's recommended replacement.
-          model: process.env.OPENAI_MODEL || "openai/gpt-oss-120b",
+          model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
           messages: [
             {
               role: "system",

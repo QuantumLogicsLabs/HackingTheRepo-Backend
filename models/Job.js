@@ -17,7 +17,6 @@ const jobSchema = new mongoose.Schema(
     },
     prUrl: { type: String, default: null },
     diffSummary: { type: String, default: null },
-    diff: { type: String, default: null }, 
     errorMessage: { type: String, default: null },
     startedAt: { type: Date, default: null },
     finishedAt: { type: Date, default: null },

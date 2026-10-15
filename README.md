@@ -41,7 +41,7 @@ Browser / Frontend
   Express API  (:5000)
   ├── /api/auth      ← JWT signup / login / me
   ├── /api/jobs      ← CRUD + polling + refinement
-  ├── /api/settings  ← GitHub & OpenAI key management
+  ├── /api/settings  ← GitHub & Groq key management
   └── /api/health    ← liveness probe
         │
         ▼
@@ -65,7 +65,7 @@ backend/
 ├── routes/
 │   ├── auth.js          # POST /signup  POST /login  GET /me
 │   ├── jobs.js          # Full job lifecycle CRUD
-│   └── settings.js      # GitHub token & OpenAI key storage
+│   └── settings.js      # GitHub token & Groq key storage
 ├── index.js             # Entry point — Express app bootstrap
 ├── vercel.json          # Vercel serverless config
 ├── .env.example         # Copy → .env and fill in values
@@ -104,7 +104,7 @@ Copy `.env.example` → `.env` and populate every value:
 | `REPOMIND_API_URL`         | ✅       | URL of the FastAPI agent (default `http://localhost:8000`) |
 | `REPOMIND_GITHUB_TOKEN`    | ✅       | GitHub PAT for the bot account that opens PRs              |
 | `REPOMIND_GITHUB_USERNAME` | ✅       | GitHub username of the bot account                         |
-| `OPENAI_API_KEY`           | ✅       | OpenAI key forwarded to RepoMind agent                     |
+| `GROQ_API_KEY`             | ✅       | Groq key for the prompt assistant (users may save their own) |
 | `PORT`                     | —        | HTTP port (default `5000`)                                 |
 
 > ⚠️ **Never commit `.env`** — it is already in `.gitignore`.
@@ -161,8 +161,8 @@ All authenticated routes require: `Authorization: Bearer <token>`
 
 | Method | Path | Auth | Description                                  |
 | ------ | ---- | ---- | -------------------------------------------- |
-| `GET`  | `/`  | ✅   | Get masked GitHub/OpenAI keys                |
-| `PUT`  | `/`  | ✅   | Update GitHub username, token, or OpenAI key |
+| `GET`  | `/`  | ✅   | Get masked GitHub/Groq keys                |
+| `PUT`  | `/`  | ✅   | Update GitHub username, token, or Groq key |
 
 ---
 
