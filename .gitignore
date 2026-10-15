@@ -3,15 +3,9 @@ node_modules/
 dist/
 .DS_Store
 *.log
-auth-data.json
 
 
 .txtconfig
 .txtignore
 HackingTheRepo.txt
-
-# make-folder-txt
-frontend.txt
 .git-multi-commit.json
-/.git-multi-commit.json
-/.git-multi-commit.json/
