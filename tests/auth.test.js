@@ -112,3 +112,41 @@ describe("auth", () => {
     expect(res.status).toBe(204);
   });
 });
+
+describe("github oauth start", () => {
+  const original = process.env.GITHUB_CLIENT_ID;
+
+  afterAll(() => {
+    if (original === undefined) delete process.env.GITHUB_CLIENT_ID;
+    else process.env.GITHUB_CLIENT_ID = original;
+  });
+
+  it("returns OAUTH_DISABLED when no client id is configured", async () => {
+    delete process.env.GITHUB_CLIENT_ID;
+    const res = await agent(app).get("/api/auth/github");
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("OAUTH_DISABLED");
+  });
+
+  it("echoes the state sent by the frontend so the browser check passes", async () => {
+    process.env.GITHUB_CLIENT_ID = "test-client-id";
+    const state = "3217dee6-174f-47a9-b094-aef012345678";
+    const res = await agent(app)
+      .get("/api/auth/github")
+      .query({ redirect_uri: "http://localhost:3000/auth/github/callback", state });
+
+    expect(res.status).toBe(302);
+    const location = new URL(res.headers.location);
+    expect(location.origin + location.pathname).toBe("https://github.com/login/oauth/authorize");
+    expect(location.searchParams.get("state")).toBe(state);
+  });
+
+  it("generates a state when the frontend sends none or a malformed one", async () => {
+    process.env.GITHUB_CLIENT_ID = "test-client-id";
+    const res = await agent(app).get("/api/auth/github").query({ state: "bad state!" });
+
+    expect(res.status).toBe(302);
+    const state = new URL(res.headers.location).searchParams.get("state");
+    expect(state).toMatch(/^[a-f0-9]{32}$/);
+  });
+});

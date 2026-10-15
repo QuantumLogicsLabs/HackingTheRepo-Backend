@@ -105,7 +105,12 @@ router.get("/github", (req, res) => {
     req.query.redirect_uri ||
     process.env.GITHUB_OAUTH_REDIRECT_URI ||
     "http://localhost:3000/auth/github/callback";
-  const state = crypto.randomBytes(16).toString("hex");
+  // The frontend generates the state, keeps it in sessionStorage and compares it
+  // when GitHub redirects back, so we must echo that value rather than invent one.
+  const clientState = typeof req.query.state === "string" ? req.query.state : "";
+  const state = /^[A-Za-z0-9-]{16,128}$/.test(clientState)
+    ? clientState
+    : crypto.randomBytes(16).toString("hex");
   oauthStates.set(state, { redirectUri, createdAt: Date.now() });
 
   const url = new URL("https://github.com/login/oauth/authorize");
