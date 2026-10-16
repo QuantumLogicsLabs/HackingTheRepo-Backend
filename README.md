@@ -1,6 +1,6 @@
-# HackingTheRepo — Frontend
+# HackingTheRepo — Backend
 
-> React SPA (Vite) that lets users submit AI-powered code-refactoring jobs, track their status in real time, and view the resulting GitHub PRs — all with a polished dark/light theming system.
+> Express.js REST API that manages AI-powered code-refactoring jobs, authenticates users via JWT, and orchestrates the **RepoMind** FastAPI agent to open real GitHub PRs.
 
 ---
 
@@ -10,69 +10,45 @@
 - [Architecture Overview](#architecture-overview)
 - [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
-- [Pages & Routes](#pages--routes)
-- [Context & State](#context--state)
-- [API Integration](#api-integration)
+- [Environment Variables](#environment-variables)
+- [API Reference](#api-reference)
 - [Scripts](#scripts)
+- [Deployment](#deployment)
 - [Upgrade Roadmap](#upgrade-roadmap)
 
 ---
 
 ## Tech Stack
 
-| Layer      | Tool                                        | Version |
-| ---------- | ------------------------------------------- | ------- |
-| Build tool | Vite                                        | 5.x     |
-| UI Library | React                                       | 18.x    |
-| Routing    | React Router DOM                            | 6.x     |
-| HTTP       | Custom `fetch` wrapper (`src/utils/api.js`) | —       |
-| Styling    | Vanilla CSS + CSS custom properties         | —       |
-| Auth state | React Context API                           | —       |
-| Theme      | React Context + `data-theme` attribute      | —       |
-| Deployment | Vercel / GitHub Pages                       | —       |
+| Layer            | Tool                           | Version |
+| ---------------- | ------------------------------ | ------- |
+| Runtime          | Node.js                        | ≥ 18    |
+| Framework        | Express.js                     | 4.x     |
+| Database         | MongoDB (Mongoose)             | 7.x     |
+| Auth             | JSON Web Tokens (jsonwebtoken) | 9.x     |
+| Password hashing | bcryptjs                       | 2.x     |
+| HTTP client      | Axios                          | 1.x     |
+| Deployment       | Vercel (serverless)            | —       |
 
 ---
 
 ## Architecture Overview
 
 ```
-src/
-├── context/
-│   ├── AuthContext       ← Global user session + JWT token
-│   └── ThemeContext       ← dark / light toggle persisted in localStorage
-├── pages/
-│   ├── LandingPage       ← Public marketing page
-│   ├── AuthPages         ← Shared login/signup shell
-│   ├── LoginPage         ← Login form
-│   ├── SignupPage         ← Signup form
-│   ├── DashboardPage     ← Job list + stats
-│   ├── NewJobPage        ← Submit a new AI job
-│   ├── JobDetailPage     ← Job status, PR link, refinement
-│   └── SettingsPage      ← GitHub token + OpenAI key
-The frontend will proxy `/api/*` to the auth backend during development.
-
-### Encrypted secrets at rest
-
-The local auth backend can encrypt sensitive values (GitHub tokens and OpenAI keys) before persisting them to `auth-data.json`. To enable AES-256-GCM encryption set the `REPOMIND_ENCRYPTION_KEY` environment variable when starting the server. The key must be 32 bytes (provide as base64 or hex).
-
-Generate a key with OpenSSL:
-
-```bash
-# base64 (recommended)
-openssl rand -base64 32
-
-# or hex
-openssl rand -hex 32
-```
-
-Start the backend with the key:
-
-```bash
-REPOMIND_ENCRYPTION_KEY=<base64-or-hex-key> GITHUB_CLIENT_ID=... GITHUB_CLIENT_SECRET=... npm run dev:api
-```
-    ├── Layout            ← Sidebar nav + main content wrapper
-    ├── StatusBadge       ← Coloured pill for job status
-    └── ThemeToggle       ← Dark/light switch button
+Browser / Frontend
+        │
+        ▼
+  Express API  (:5000)
+  ├── /api/auth      ← JWT signup / login / me
+  ├── /api/jobs      ← CRUD + polling + refinement
+  ├── /api/settings  ← GitHub & Groq key management
+  └── /api/health    ← liveness probe
+        │
+        ▼
+  RepoMind FastAPI  (:8000)   ←  AI agent + GitHub PR creator
+        │
+        ▼
+  MongoDB Atlas                ←  Users, Jobs
 ```
 
 ---
@@ -80,31 +56,19 @@ REPOMIND_ENCRYPTION_KEY=<base64-or-hex-key> GITHUB_CLIENT_ID=... GITHUB_CLIENT_S
 ## Project Structure
 
 ```
-frontend/
-├── src/
-│   ├── components/
-│   │   ├── Layout.jsx / Layout.css
-│   │   ├── StatusBadge.jsx
-│   │   └── ThemeToggle.jsx
-│   ├── context/
-│   │   ├── AuthContext.jsx
-│   │   └── ThemeContext.jsx
-│   ├── pages/
-│   │   ├── LandingPage.jsx / .css
-│   │   ├── AuthPages.jsx / .css
-│   │   ├── LoginPage.jsx
-│   │   ├── SignupPage.jsx
-│   │   ├── DashboardPage.jsx / .css
-│   │   ├── NewJobPage.jsx / .css
-│   │   ├── JobDetailPage.jsx / .css
-│   │   └── SettingsPage.jsx / .css
-│   ├── utils/
-│   │   └── api.js          # Thin fetch wrapper — sets Authorization header
-│   ├── App.jsx             # Router + context providers
-│   ├── main.jsx            # React DOM entry point
-│   └── index.css           # Global CSS variables & reset
-├── index.html
-├── vite.config.js
+backend/
+├── middleware/
+│   └── auth.js          # JWT protect middleware
+├── models/
+│   ├── Job.js           # Job schema (status, prUrl, refinements…)
+│   └── User.js          # User schema + bcrypt hooks
+├── routes/
+│   ├── auth.js          # POST /signup  POST /login  GET /me
+│   ├── jobs.js          # Full job lifecycle CRUD
+│   └── settings.js      # GitHub token & Groq key storage
+├── index.js             # Entry point — Express app bootstrap
+├── vercel.json          # Vercel serverless config
+├── .env.example         # Copy → .env and fill in values
 └── .gitignore
 ```
 
@@ -115,448 +79,317 @@ frontend/
 ### Prerequisites
 
 - Node.js ≥ 18
-- Backend running on `:5000` (see `/backend`)
+- MongoDB (local or Atlas)
+- RepoMind FastAPI running on `:8000` (see `/repomind`)
 
 ### Install & Run
 
 ```bash
-cd frontend
+cd backend
 npm install
-npm run dev        # Vite dev server on http://localhost:5173
-```
-
-### Build for Production
-
-```bash
-npm run build      # outputs to /dist
-npm run preview    # local preview of the production build
+cp .env.example .env   # fill in your values
+npm run dev            # starts with nodemon on :5000
 ```
 
 ---
 
-## Pages & Routes
+## Environment Variables
 
-| Path         | Component       | Auth Required |
-| ------------ | --------------- | ------------- |
-| `/`          | `LandingPage`   | ❌            |
-| `/login`     | `LoginPage`     | ❌            |
-| `/signup`    | `SignupPage`    | ❌            |
-| `/dashboard` | `DashboardPage` | ✅            |
-| `/jobs/new`  | `NewJobPage`    | ✅            |
-| `/jobs/:id`  | `JobDetailPage` | ✅            |
-| `/settings`  | `SettingsPage`  | ✅            |
+Copy `.env.example` → `.env` and populate every value:
 
----
+| Variable                   | Required | Description                                                |
+| -------------------------- | -------- | ---------------------------------------------------------- |
+| `MONGO_URI`                | ✅       | MongoDB connection string                                  |
+| `JWT_SECRET`               | ✅       | Long random string for signing tokens                      |
+| `REPOMIND_API_URL`         | ✅       | URL of the FastAPI agent (default `http://localhost:8000`) |
+| `REPOMIND_GITHUB_TOKEN`    | ✅       | GitHub PAT for the bot account that opens PRs              |
+| `REPOMIND_GITHUB_USERNAME` | ✅       | GitHub username of the bot account                         |
+| `GROQ_API_KEY`             | ✅       | Groq key for the prompt assistant (users may save their own) |
+| `PORT`                     | —        | HTTP port (default `5000`)                                 |
 
-## Context & State
-
-### AuthContext
-
-Provides `{ user, token, login, logout }` to the entire app. Token is stored in `localStorage` and injected into every API call via `api.js`.
-
-### ThemeContext
-
-Provides `{ theme, toggleTheme }`. Writes `data-theme="dark"|"light"` to `document.documentElement`, which drives all CSS custom property values in `index.css`.
+> ⚠️ **Never commit `.env`** — it is already in `.gitignore`.
 
 ---
 
-## API Integration
+## API Reference
 
-All calls go through `src/utils/api.js` which:
+All routes are prefixed with `/api`.
 
-1. Reads `VITE_API_URL` from environment (falls back to `http://localhost:5000`)
-2. Attaches `Authorization: Bearer <token>` automatically
-3. Throws on non-2xx responses with the server's `message` field
+### Auth — `/api/auth`
 
-To point the app at a different backend:
+| Method | Path      | Auth      | Description                 |
+| ------ | --------- | --------- | --------------------------- |
+| `POST` | `/signup` | ❌        | Register a new user         |
+| `POST` | `/login`  | ❌        | Login and receive a JWT     |
+| `GET`  | `/me`     | ✅ Bearer | Return current user profile |
 
-```bash
-# .env.local
-VITE_API_URL=https://your-backend.vercel.app
+**POST /api/auth/signup** — Body: `{ username, email, password }`
+
+**POST /api/auth/login** — Body: `{ email, password }`
+
+All authenticated routes require: `Authorization: Bearer <token>`
+
+---
+
+### Jobs — `/api/jobs`
+
+| Method   | Path          | Auth | Description                                     |
+| -------- | ------------- | ---- | ----------------------------------------------- |
+| `POST`   | `/`           | ✅   | Create a new job (queues it to RepoMind)        |
+| `GET`    | `/`           | ✅   | List all jobs for the logged-in user            |
+| `GET`    | `/:id`        | ✅   | Get a single job by ID                          |
+| `GET`    | `/:id/status` | ✅   | Poll live status from RepoMind                  |
+| `POST`   | `/:id/refine` | ✅   | Add a refinement instruction to an existing job |
+| `DELETE` | `/:id`        | ✅   | Delete a job                                    |
+
+**POST /api/jobs** — Body:
+
+```json
+{
+  "repoUrl": "https://github.com/owner/repo",
+  "instruction": "Add unit tests for all utility functions",
+  "branchName": "repomind/add-tests", // optional — auto-generated if omitted
+  "prTitle": "chore: add utility tests" // optional — auto-generated if omitted
+}
 ```
 
-### GitHub OAuth backend
+**Job Status Enum:** `queued` → `running` → `completed` | `failed` | `refined`
 
-This repo can also run a local auth backend that supports GitHub OAuth and settings persistence.
+---
 
-To start the backend server locally:
+### Settings — `/api/settings`
 
-```bash
-GITHUB_CLIENT_ID=<your-client-id> GITHUB_CLIENT_SECRET=<your-client-secret> npm run dev:api
-```
+| Method | Path | Auth | Description                                  |
+| ------ | ---- | ---- | -------------------------------------------- |
+| `GET`  | `/`  | ✅   | Get masked GitHub/Groq keys                |
+| `PUT`  | `/`  | ✅   | Update GitHub username, token, or Groq key |
 
-Then start the frontend in another terminal:
+---
 
-```bash
-npm run dev
-```
+### Health
 
-The frontend will proxy `/api/*` to `http://localhost:5000` during development.
-
-### Sentry monitoring
-
-To enable frontend Sentry error tracking and performance tracing, add the browser-facing Sentry env vars:
-
-```bash
-VITE_SENTRY_DSN=https://<PUBLIC_KEY>@sentry.io/<PROJECT_ID>
-VITE_SENTRY_ENVIRONMENT=production
-VITE_SENTRY_TRACES_SAMPLE_RATE=0.25
-VITE_SENTRY_RELEASE=frontend@1.0.0
-```
-
-For sourcemap upload during production builds, set the build-only Sentry variables in your CI environment. Do not commit these values to source control:
-
-```bash
-SENTRY_AUTH_TOKEN=┗ your sentry auth token
-SENTRY_ORG=<your-org-slug>
-SENTRY_PROJECT=<your-project-slug>
-SENTRY_RELEASE=frontend@1.0.0
-SENTRY_URL=https://sentry.io/   # optional
-```
-
-### Distributed tracing (OpenTelemetry)
-
-This frontend is now instrumented for OpenTelemetry browser tracing. To enable it, set:
-
-```bash
-VITE_OTEL_TRACES_ENDPOINT=https://your-otel-collector.example.com/v1/traces
-VITE_OTEL_SERVICE_NAME=repomind-frontend
-VITE_OTEL_ENVIRONMENT=production
-```
-
-The browser will emit W3C trace context headers on outgoing API requests, so an Express backend and a FastAPI backend can continue the same distributed trace.
-
-#### Backend requirements
-
-- Express must accept `traceparent` / `baggage` headers, continue the active span, and forward the same trace headers to downstream services.
-- FastAPI must also accept propagated headers and export spans to Jaeger/Tempo via OTLP.
-
-Example backend setup:
-
-- Express: `@opentelemetry/sdk-node`, `@opentelemetry/instrumentation-express`, `@opentelemetry/instrumentation-http`
-- FastAPI: `opentelemetry-sdk`, `opentelemetry-instrumentation-fastapi`, `opentelemetry-exporter-otlp`
-
-This repository only contains frontend browser instrumentation. The backend services must be instrumented separately to get full traces spanning Express → Repomind FastAPI.
-
-### Prometheus metrics endpoint
-
-This project now includes a local Prometheus-compatible metrics server for job throughput, queue depth, and API latency histograms.
-
-Start the metrics collector in a separate terminal:
-
-```bash
-npm run metrics
-```
-
-Then start the frontend dev server normally:
-
-```bash
-npm run dev
-```
-
-The app proxies `/metrics` to the local collector, so Prometheus can scrape:
-
-```text
-http://localhost:3000/metrics
-```
-
-If your backend supports it, point `VITE_API_URL` at your API server and use job-related request telemetry for the job metrics.
+| Method | Path          | Description                                   |
+| ------ | ------------- | --------------------------------------------- |
+| `GET`  | `/api/health` | Returns `{ status: "ok", bot: "<username>" }` |
 
 ---
 
 ## Scripts
 
 ```bash
-npm run dev       # Hot-reloading dev server
-npm run build     # Production bundle → /dist
-npm run preview   # Serve /dist locally
-npm run lint      # ESLint (if configured)
-npm run test      # Vitest test suite
+npm run dev     # nodemon hot-reload
+npm start       # node index.js (production)
 ```
 
 ---
 
-## CI/CD
+## Deployment
 
-GitHub Actions runs tests, linting, and a production build on every pull request to `main` and every push to `main`.
-Successful pushes to `main` are deployed to Vercel production automatically.
+The project includes `vercel.json` for one-click Vercel deployment.
 
-Required GitHub repository secrets:
+```bash
+npm i -g vercel
+vercel --prod
+```
 
-- `VERCEL_TOKEN`
-- `VERCEL_ORG_ID`
-- `VERCEL_PROJECT_ID`
-
-Optional GitHub repository variables used at build/deploy time:
-
-- `VITE_API_URL`
-- `VITE_SENTRY_DSN`
-- `VITE_SENTRY_TRACES_SAMPLE_RATE`
-- `VITE_OTEL_TRACES_ENDPOINT`
-- `VITE_OTEL_SERVICE_NAME`
-
-Optional GitHub repository secrets for Sentry sourcemap uploads:
-
-- `SENTRY_AUTH_TOKEN`
-- `SENTRY_ORG`
-- `SENTRY_PROJECT`
+Add all environment variables in the Vercel dashboard under **Settings → Environment Variables**.
 
 ---
 
 ## Upgrade Roadmap
 
-Planned improvements to evolve this Vite/React SPA into an industry-grade Next.js application.
+Planned improvements to bring the backend to industry-standard production quality.
 
----
+### Phase 1 — API Documentation (Swagger UI)
 
-### Phase 1 — Migrate to Next.js 15 (App Router)
+> Estimated effort: 1–2 days
 
-> Estimated effort: 3–5 days
-
-**Why Next.js?**
-
-- Server-Side Rendering (SSR) for SEO on the landing page
-- React Server Components (RSC) — fetch data on the server, ship zero JS for static UI
-- Built-in API Routes — can co-locate lightweight BFF endpoints
-- Image optimisation, font loading, and metadata API out of the box
-- First-class Vercel deployment with edge middleware
-
-**Migration Steps:**
+Install **swagger-jsdoc** + **swagger-ui-express** to auto-generate interactive docs from JSDoc comments:
 
 ```bash
-# 1. Scaffold new Next.js app
-npx create-next-app@latest frontend-next --typescript --tailwind --app
-
-# 2. Map pages
-# src/pages/LandingPage.jsx  → app/page.tsx          (Server Component, SSR)
-# src/pages/DashboardPage    → app/dashboard/page.tsx (Client Component)
-# src/pages/JobDetailPage    → app/jobs/[id]/page.tsx (Server Component + polling)
-# src/pages/NewJobPage       → app/jobs/new/page.tsx  (Client Component)
-# src/pages/SettingsPage     → app/settings/page.tsx  (Client Component)
-
-# 3. Move AuthContext → use next-auth or a custom session provider
-# 4. Replace React Router <Link> with next/link
-# 5. Replace fetch wrapper with server actions or next/navigation
+npm install swagger-jsdoc swagger-ui-express
 ```
 
-**New App Router Structure:**
+Add to `index.js`:
 
-```
-app/
-├── layout.tsx              ← Root layout (fonts, providers, nav)
-├── page.tsx                ← Landing (Server Component)
-├── (auth)/
-│   ├── login/page.tsx
-│   └── signup/page.tsx
-├── (app)/
-│   ├── layout.tsx          ← Protected layout with sidebar
-│   ├── dashboard/page.tsx
-│   ├── jobs/
-│   │   ├── new/page.tsx
-│   │   └── [id]/page.tsx
-│   └── settings/page.tsx
-└── api/
-    └── health/route.ts     ← BFF proxy or liveness check
-```
+```js
+import swaggerJsdoc from "swagger-jsdoc";
+import swaggerUi from "swagger-ui-express";
 
----
-
-### Phase 2 — TypeScript
-
-Convert all `.jsx` → `.tsx` and `.js` → `.ts`:
-
-```bash
-npm install -D typescript @types/react @types/node
-npx tsc --init
-```
-
-Type all API response shapes:
-
-```ts
-// types/job.ts
-export interface Job {
-  _id: string;
-  repoUrl: string;
-  instruction: string;
-  status: "queued" | "running" | "completed" | "failed" | "refined";
-  prUrl: string | null;
-  diffSummary: string | null;
-  createdAt: string;
-}
-```
-
----
-
-### Phase 3 — Tailwind CSS
-
-Replace per-page `.css` files with **Tailwind** utility classes:
-
-```bash
-npm install -D tailwindcss postcss autoprefixer
-npx tailwindcss init -p
-```
-
-Keep CSS custom properties for theming — Tailwind and CSS variables work well together.
-
----
-
-### Phase 4 — Component Library (shadcn/ui)
-
-Add **shadcn/ui** for accessible, well-designed primitives:
-
-```bash
-npx shadcn-ui@latest init
-npx shadcn-ui@latest add button badge card dialog input label
-```
-
-Replace hand-written `StatusBadge`, form inputs, and modals with shadcn components that come with full ARIA compliance and keyboard navigation.
-
----
-
-### Phase 5 — Server State Management (TanStack Query)
-
-Replace manual `useEffect` fetch loops + status polling with **TanStack Query**:
-
-```bash
-npm install @tanstack/react-query
-```
-
-```tsx
-// Auto-refetch job status every 3 seconds until terminal state
-const { data: job } = useQuery({
-  queryKey: ["job", id],
-  queryFn: () => fetchJobStatus(id),
-  refetchInterval: (data) =>
-    data?.status === "running" || data?.status === "queued" ? 3000 : false,
+const spec = swaggerJsdoc({
+  definition: {
+    openapi: "3.0.0",
+    info: { title: "HackingTheRepo API", version: "1.0.0" },
+    components: {
+      securitySchemes: {
+        bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
+      },
+    },
+    security: [{ bearerAuth: [] }],
+  },
+  apis: ["./routes/*.js"],
 });
+app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(spec));
+```
+
+Then annotate routes with JSDoc `@swagger` blocks. Docs will be live at `http://localhost:5000/api/docs`.
+
+---
+
+### Phase 2 — Input Validation (Zod)
+
+Replace ad-hoc `if (!field)` checks with **Zod** schema validation:
+
+```bash
+npm install zod
+```
+
+```js
+import { z } from "zod";
+
+const createJobSchema = z.object({
+  repoUrl: z.string().url(),
+  instruction: z.string().min(10).max(1000),
+  branchName: z.string().optional(),
+  prTitle: z.string().optional(),
+});
+
+// In route:
+const parsed = createJobSchema.safeParse(req.body);
+if (!parsed.success) return res.status(400).json(parsed.error.format());
+```
+
+---
+
+### Phase 3 — Rate Limiting & Security Headers
+
+```bash
+npm install express-rate-limit helmet
+```
+
+```js
+import rateLimit from "express-rate-limit";
+import helmet from "helmet";
+
+app.use(helmet());
+app.use("/api/auth", rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }));
+app.use("/api/jobs", rateLimit({ windowMs: 60 * 1000, max: 30 }));
+```
+
+---
+
+### Phase 4 — Structured Logging (Pino)
+
+Replace `console.log` with **Pino** for JSON logs compatible with Datadog / CloudWatch:
+
+```bash
+npm install pino pino-http
+```
+
+```js
+import pino from "pino";
+import pinoHttp from "pino-http";
+
+const logger = pino({ level: process.env.LOG_LEVEL || "info" });
+app.use(pinoHttp({ logger }));
+```
+
+---
+
+### Phase 5 — Job Queue (BullMQ + Redis)
+
+Replace the fire-and-forget Axios call to RepoMind with a proper **BullMQ** queue backed by Redis, enabling retries, concurrency control, and a dashboard:
+
+```bash
+npm install bullmq ioredis
 ```
 
 Benefits:
 
-- Background refetching
-- Stale-while-revalidate caching
-- Optimistic updates for mutations
-- DevTools (`@tanstack/react-query-devtools`)
+- Automatic retry on transient failures
+- Dead-letter queue for permanently failed jobs
+- Bull Board UI for queue monitoring (`@bull-board/express`)
+- Backpressure & concurrency limits
 
 ---
 
-### Phase 6 — Form Handling (React Hook Form + Zod)
-
-Replace controlled-input boilerplate with **React Hook Form** + **Zod** validation:
+### Phase 6 — Testing (Vitest + Supertest)
 
 ```bash
-npm install react-hook-form zod @hookform/resolvers
+npm install -D vitest supertest @vitest/coverage-v8
 ```
 
-```tsx
-const schema = z.object({
-  repoUrl: z.string().url("Must be a valid GitHub URL"),
-  instruction: z
-    .string()
-    .min(10, "Describe the change in at least 10 characters"),
-});
+Structure:
 
-const {
-  register,
-  handleSubmit,
-  formState: { errors },
-} = useForm({
-  resolver: zodResolver(schema),
-});
+```
+backend/
+└── tests/
+    ├── auth.test.js
+    ├── jobs.test.js
+    └── settings.test.js
 ```
 
----
-
-### Phase 7 — Authentication (NextAuth.js / Auth.js)
-
-Replace the manual JWT + localStorage pattern with **Auth.js v5**:
+Run:
 
 ```bash
-npm install next-auth@beta
-```
-
-Benefits:
-
-- Secure HttpOnly cookie sessions (no token in localStorage)
-- OAuth providers (GitHub login with one click)
-- CSRF protection built in
-- Session accessible in both Server and Client Components
-
----
-
-### Phase 8 — Testing (Vitest + Testing Library + Playwright)
-
-```bash
-# Unit & integration
-npm install -D vitest @testing-library/react @testing-library/user-event jsdom
-
-# E2E
-npm install -D @playwright/test
-```
-
-**Structure:**
-
-```
-tests/
-├── unit/
-│   ├── StatusBadge.test.tsx
-│   └── api.test.ts
-├── integration/
-│   └── DashboardPage.test.tsx
-└── e2e/
-    ├── auth.spec.ts
-    └── job-lifecycle.spec.ts
+npx vitest run --coverage
 ```
 
 ---
 
-### Phase 9 — CI/CD (GitHub Actions)
+### Phase 7 — CI/CD (GitHub Actions)
 
-Add `.github/workflows/frontend-ci.yml`:
+Add `.github/workflows/backend-ci.yml`:
 
 ```yaml
-name: Frontend CI
+name: Backend CI
 on: [push, pull_request]
 jobs:
-  build-test:
+  test:
     runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports: ["27017:27017"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: "20" }
       - run: npm ci
-      - run: npm run build
-      - run: npm run test
-      - run: npx playwright install --with-deps
-      - run: npx playwright test
+      - run: npm test
+      - run: npm run lint
 ```
 
 ---
 
-### Phase 10 — Performance & Observability
+### Phase 8 — Database Migrations (migrate-mongo)
 
-| Tool                          | Purpose                                               |
-| ----------------------------- | ----------------------------------------------------- |
-| **next/image**                | Automatic WebP, lazy-loading, layout shift prevention |
-| **next/font**                 | Self-hosted fonts with zero CLS                       |
-| **Sentry** (`@sentry/nextjs`) | Frontend error tracking                               |
-| **Vercel Analytics**          | Core Web Vitals, page-level performance               |
-| **Vercel Speed Insights**     | Real-user monitoring (RUM)                            |
-| **Lighthouse CI**             | Automated Lighthouse scores in PRs                    |
+```bash
+npm install migrate-mongo
+```
+
+Tracks schema changes as versioned migration scripts, preventing data loss during production deploys.
+
+---
+
+### Phase 9 — Observability
+
+| Tool                           | Purpose                                     |
+| ------------------------------ | ------------------------------------------- |
+| **Sentry** (`@sentry/node`)    | Error tracking & alerting                   |
+| **Prometheus** (`prom-client`) | Custom metrics endpoint `/metrics`          |
+| **OpenTelemetry**              | Distributed traces across Express → FastAPI |
 
 ---
 
 ### Summary Roadmap
 
 ```
-v1.0  ✅  Current (Vite + React + CSS, Context API, React Router)
-v1.1  →  TypeScript migration
-v1.2  →  Tailwind CSS + shadcn/ui component library
-v1.3  →  TanStack Query for server state + smart polling
-v1.4  →  React Hook Form + Zod client-side validation
-v1.5  →  Next.js 15 App Router migration (SSR, RSC, metadata)
-v1.6  →  Auth.js v5 (HttpOnly cookies, GitHub OAuth)
-v2.0  →  Vitest + Playwright test suite (>80% coverage)
-v2.1  →  GitHub Actions CI/CD + Lighthouse CI
-v2.2  →  Sentry + Vercel Analytics + Speed Insights
+v1.0  ✅  Current (Express, JWT, MongoDB, Vercel)
+v1.1  →  Swagger UI docs + Zod validation
+v1.2  →  Helmet + Rate limiting + Pino logging
+v1.3  →  BullMQ job queue + Bull Board dashboard
+v1.4  →  Vitest + Supertest test suite (>80% coverage)
+v1.5  →  GitHub Actions CI/CD pipeline
+v2.0  →  Sentry + OpenTelemetry observability
 ```
